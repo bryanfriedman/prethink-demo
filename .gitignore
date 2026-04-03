@@ -1,0 +1,17 @@
+# Cloned repositories (recreated by init.sh)
+with-prethink/*/
+no-prethink/*/
+
+# Generated git repo in custom-app (created by init.sh)
+custom-app/.git
+
+# Moderne build artifacts
+.moderne/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+*.iml
+.vscode/
