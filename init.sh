@@ -83,7 +83,7 @@ if [ "$RESET" = true ]; then
   clean_dir "$WITHOUT_DIR"
   # Remove custom-app git repo, .moderne artifacts, and fake remote
   rm -rf "$SCRIPT_DIR/custom-app/.git" "$SCRIPT_DIR/custom-app/.moderne" "$SCRIPT_DIR/custom-app/target"
-  rm -rf /tmp/fake-remotes/custom-app.git
+  rm -rf /tmp/fake-remotes/custom-app.git /tmp/fake-remotes/custom-app-gitdir
   echo "    Cleaned $SCRIPT_DIR/custom-app"
   rm -rf "$SCRIPT_DIR/.moderne"
   echo "==> Reset complete."
@@ -135,8 +135,6 @@ mod config recipes jar install "org.openrewrite.recipe:rewrite-prethink:$PRETHIN
 # Set up custom-app as a git repo with a fake remote so mod can build it
 echo "==> Setting up custom-app with fake remote..."
 "$SCRIPT_DIR/setup-fake-remote.sh" "$SCRIPT_DIR/custom-app"
-# Hide custom-app from git status so the nested .git doesn't show as modified
-git update-index --assume-unchanged custom-app
 
 # Install custom recipe YAML
 echo "==> Installing custom recipe YAML..."

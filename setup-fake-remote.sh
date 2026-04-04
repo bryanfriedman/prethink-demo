@@ -19,16 +19,19 @@ fi
 PROJECT_DIR="$(cd "$1" && pwd)"
 DIR_NAME="$(basename "$PROJECT_DIR")"
 BARE_REPO="${2:-/tmp/fake-remotes/${DIR_NAME}.git}"
+GIT_DIR="/tmp/fake-remotes/${DIR_NAME}-gitdir"
 
 # Create the bare repository
 echo "Creating bare repo at: $BARE_REPO"
 mkdir -p "$BARE_REPO"
 git init --bare "$BARE_REPO"
 
-# Initialize the project dir if it's not already a git repo
-if [[ ! -d "$PROJECT_DIR/.git" ]]; then
-  echo "Initializing git repo in: $PROJECT_DIR"
-  git -C "$PROJECT_DIR" init
+# Initialize the project dir with a separate git dir so the parent repo
+# doesn't see a nested .git directory
+if [[ ! -d "$PROJECT_DIR/.git" && ! -f "$PROJECT_DIR/.git" ]]; then
+  echo "Initializing git repo in: $PROJECT_DIR (git dir: $GIT_DIR)"
+  rm -rf "$GIT_DIR"
+  git init --separate-git-dir "$GIT_DIR" "$PROJECT_DIR"
 fi
 
 # Add the bare repo as origin (remove existing origin first if present)
