@@ -82,8 +82,9 @@ if [ "$RESET" = true ]; then
   clean_dir "$WITH_DIR"
   clean_dir "$WITHOUT_DIR"
   # Remove custom-app git repo, .moderne artifacts, and fake remote
-  rm -rf "$SCRIPT_DIR/custom-app/.git" "$SCRIPT_DIR/custom-app/.moderne"
+  rm -rf "$SCRIPT_DIR/custom-app/.git" "$SCRIPT_DIR/custom-app/.moderne" "$SCRIPT_DIR/custom-app/target"
   rm -rf /tmp/fake-remotes/custom-app.git
+  echo "    Cleaned $SCRIPT_DIR/custom-app"
   rm -rf "$SCRIPT_DIR/.moderne"
   echo "==> Reset complete."
   exit 0
