@@ -121,6 +121,7 @@ echo "version=$CLI_VERSION" > "$HOME/.moderne/cli/dist/moderne-wrapper.propertie
 # Force LST v2 — CLI 4.0.6 has a bug that persists v3 in ~/.moderne/cli/moderne.yml
 mod config features lst --version=2
 mod config recipes jar install "org.openrewrite.recipe:rewrite-prethink:$PRETHINK_VERSION"
+mod config recipes jar install "io.moderne.recipe:rewrite-prethink:$PRETHINK_VERSION"
 
 # Set up custom-app as a git repo with a fake remote so mod can build it
 echo "==> Setting up custom-app with fake remote..."

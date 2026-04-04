@@ -52,18 +52,18 @@ Report token usage for a completed agent session:
 _Compare token usage when an agent works with vs. without Prethink context._
 
 **Example Prompts**
-* If I modify the order entity, what other services will be affected?
+* `If I modify the order entity, what other services will be affected?`
 
 ### 2. Customized Recipe
 
 _Show how Prethink context from custom recipes gives agents domain-specific understanding._
 
 **Example Prompts**
-* Add a new endpoint to look up a customer's loyalty rewards balance from our external loyalty platform service. Include the service client, controller endpoint, and any required annotations.
+* `Add a new endpoint to look up a customer's loyalty rewards balance from our external loyalty platform service. Include the service client, controller endpoint, and any required annotations.`
 
 ### 3. Code Quality
 
 _Demonstrate how Prethink-informed agents produce higher quality code changes._
 
 **Example Prompts**
-Add a payment validation method to OrderService
+* `Add a payment validation method to OrderService`
