@@ -18,7 +18,7 @@ This will:
 1. Clone all repositories listed in `repos.csv` into both `with-prethink/` and `no-prethink/`
 2. Run `refresh-prethink.sh` in `with-prethink/` to generate Prethink context (build LSTs, run recipe, apply changes)
 
-Use `--skip-prethink` to clone only, without generating context.
+Use `--skip-prethink` to clone only, without generating context. Use `--clean` to get back to the original root repo state, or `--reset` to clean first and then re-initialize.
 
 ## Directory Structure
 
