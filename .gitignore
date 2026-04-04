@@ -1,9 +1,12 @@
-# Cloned repositories (recreated by init.sh)
-with-prethink/*/
-no-prethink/*/
+# Cloned repositories and generated scripts (recreated by init.sh)
+with-prethink/*
+!with-prethink/.gitkeep
+!with-prethink/refresh-prethink.sh
+no-prethink/*
+!no-prethink/.gitkeep
 
-# Generated git repo in custom-app (created by init.sh)
-custom-app/.git
+# Custom app (recreated by init.sh)
+custom-app/
 
 # Moderne build artifacts
 .moderne/
