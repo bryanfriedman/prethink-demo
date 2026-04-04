@@ -16,9 +16,9 @@ Demonstrates how Moderne Prethink improves AI coding agent effectiveness by prov
 
 This will:
 1. Clone all repositories listed in `repos.csv` into both `with-prethink/` and `no-prethink/`
-2. Run `refresh-prethink.sh` in `with-prethink/` to generate Prethink context (build LSTs, run recipe, apply changes)
+2. Run `refresh-prethink.sh` on `with-prethink/` to generate Prethink context (build LSTs, run recipe, apply changes)
 
-Use `--skip-prethink` to clone only, without generating context. Use `--clean` to get back to the original root repo state, or `--reset` to clean first and then re-initialize.
+Use `--skip-prethink` to clone only, without generating context. Use `--clean` to remove cloned directories, or `--reset` to clean and re-initialize.
 
 ## Directory Structure
 
@@ -26,10 +26,10 @@ Use `--skip-prethink` to clone only, without generating context. Use `--clean` t
 .
 ├── init.sh                         # Setup script — run this first
 ├── repos.csv                       # Repositories to clone for the demo
+├── refresh-prethink.sh             # Regenerates Prethink context for a directory
 ├── session-tokens.sh               # Token usage reporter for agent sessions
-├── custom-app/                     # Sample app for custom starter & code quality demos
+├── DEMOS.md                        # Step-by-step demo walkthrough
 ├── with-prethink/                  # Cloned repos + Prethink context (generated)
-│   └── refresh-prethink.sh         # Regenerates Prethink context
 └── no-prethink/                    # Cloned repos without context (generated)
 ```
 
@@ -47,23 +47,4 @@ Report token usage for a completed agent session:
 
 ## Demos
 
-### 1. Side-by-Side Token Comparison
-
-_Compare token usage when an agent works with vs. without Prethink context._
-
-**Example Prompts**
-* `If I modify the order entity, what other services will be affected?`
-
-### 2. Customized Recipe
-
-_Show how Prethink context from custom recipes gives agents domain-specific understanding._
-
-**Example Prompts**
-* `Add a new endpoint to look up a customer's loyalty rewards balance from our external loyalty platform service. Include the service client, controller endpoint, and any required annotations.`
-
-### 3. Code Quality
-
-_Demonstrate how Prethink-informed agents produce higher quality code changes._
-
-**Example Prompts**
-* `Add a payment validation method to OrderService`
+See [DEMOS.md](DEMOS.md) for detailed step-by-step instructions for each scenario.

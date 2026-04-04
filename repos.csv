@@ -1,2 +1,3 @@
-origin,path,cloneUrl,branch,org1
-github.com,nashtech-garage/yas,https://github.com/nashtech-garage/yas,main,YAS
+origin,path,cloneUrl,branch
+github.com,nashtech-garage/yas,https://github.com/nashtech-garage/yas,main
+github.com,bryanfriedman/prethink-ecommerce-example,https://github.com/bryanfriedman/prethink-ecommerce-example,main

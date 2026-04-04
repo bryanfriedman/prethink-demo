@@ -64,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     -h|--help)
       echo "Usage: $0 [--skip-prethink] [--agent <name>] [--clean] [--reset]"
       echo "               [--cli-version <ver>] [--prethink-version <ver>]"
+      echo "               [--moderne-prethink-version <ver>]"
       echo "  --skip-prethink       Skip running the refresh-prethink step"
       echo "  --agent <name>        Target agent: claude (default), copilot, cursor, windsurf"
       echo "  --clean               Remove cloned repos and .moderne artifacts, then exit"
@@ -80,30 +81,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Clean a directory: remove everything except .gitkeep and refresh-prethink.sh
-clean_dir() {
-  local dir="$1"
-  if [ -d "$dir" ]; then
-    find "$dir" -mindepth 1 -maxdepth 1 \
-      ! -name '.gitkeep' \
-      ! -name 'refresh-prethink.sh' \
-      -exec rm -rf {} +
-    echo "    Cleaned $dir"
-  fi
-}
-
 # Clean mode (also used by --reset)
 if [ "$CLEAN" = true ]; then
   echo "==> Cleaning demo directories..."
-  clean_dir "$WITH_DIR"
-  clean_dir "$WITHOUT_DIR"
-  # Remove custom-app git repo, .moderne artifacts, and fake remote
-  rm -rf "$SCRIPT_DIR/custom-app/.git" "$SCRIPT_DIR/custom-app/.moderne" "$SCRIPT_DIR/custom-app/target"
-  rm -rf /tmp/fake-remotes/custom-app.git /tmp/fake-remotes/custom-app-gitdir
-  echo "    Cleaned $SCRIPT_DIR/custom-app"
-  rm -rf "$SCRIPT_DIR/.moderne"
+  rm -rf "$WITH_DIR" "$WITHOUT_DIR" "$SCRIPT_DIR/.moderne"
   echo "==> Clean complete."
-  # If --reset, continue with init; if --clean only, exit
   if [ "$RESET" = false ]; then
     exit 0
   fi
@@ -114,11 +96,13 @@ if [ ! -f "$REPOS_CSV" ]; then
   exit 1
 fi
 
-# Sync repos using mod git sync so the CLI registers them in its organization
+# Sync repos into both directories
 echo "==> Syncing repos into no-prethink/..."
+mkdir -p "$WITHOUT_DIR"
 mod git sync csv "$WITHOUT_DIR" "$REPOS_CSV" --with-sources --yes
 
 echo "==> Syncing repos into with-prethink/..."
+mkdir -p "$WITH_DIR"
 mod git sync csv "$WITH_DIR" "$REPOS_CSV" --with-sources --yes
 
 # Pin CLI and recipe versions for compatibility
@@ -128,26 +112,16 @@ echo "==> Setting CLI to $CLI_VERSION, installing rewrite-prethink $PRETHINK_VER
 echo "version=$CLI_VERSION" > "$HOME/.moderne/cli/dist/moderne-wrapper.properties"
 # Force LST v2 — CLI 4.0.6 has a bug that persists v3 in ~/.moderne/cli/moderne.yml
 mod config features lst --version=2
-mod config recipes jar install "org.openrewrite.recipe:rewrite-prethink:$PRETHINK_VERSION"
-mod config recipes jar install "io.moderne.recipe:rewrite-prethink:$MODERNE_PRETHINK_VERSION"
-
-# Set up custom-app as a git repo with a fake remote so mod can build it
-echo "==> Setting up custom-app with fake remote..."
-"$SCRIPT_DIR/setup-fake-remote.sh" "$SCRIPT_DIR/custom-app"
+mod config recipes jar install "org.openrewrite.recipe:rewrite-prethink:$PRETHINK_VERSION" "io.moderne.recipe:rewrite-prethink:$MODERNE_PRETHINK_VERSION"
 
 # Install custom recipe YAML
 echo "==> Installing custom recipe YAML..."
-mod config recipes yaml install "$SCRIPT_DIR/custom-app/rewrite.yml"
-
-# Create symlinks to session-tokens.sh
-echo "==> Creating session-tokens.sh symlinks..."
-ln -sf ../session-tokens.sh "$WITH_DIR/session-tokens.sh"
-ln -sf ../session-tokens.sh "$WITHOUT_DIR/session-tokens.sh"
+mod config recipes yaml install "$WITH_DIR/bryanfriedman/prethink-ecommerce-example/rewrite.yml"
 
 # Run prethink refresh
 if [ "$SKIP_PRETHINK" = false ]; then
   echo "==> Running Prethink refresh in with-prethink/ (agent: $AGENT)..."
-  "$WITH_DIR/refresh-prethink.sh" "$AGENT"
+  "$SCRIPT_DIR/refresh-prethink.sh" "$WITH_DIR" "$AGENT"
 else
   echo "==> Skipping Prethink refresh (--skip-prethink)"
 fi

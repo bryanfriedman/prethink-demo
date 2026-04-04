@@ -1,9 +1,6 @@
-# Cloned repositories and generated scripts (recreated by init.sh)
-with-prethink/*
-!with-prethink/.gitkeep
-!with-prethink/refresh-prethink.sh
-no-prethink/*
-!no-prethink/.gitkeep
+# Cloned directories (recreated by init.sh)
+with-prethink/
+no-prethink/
 
 # Moderne build artifacts
 .moderne/
