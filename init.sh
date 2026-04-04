@@ -8,6 +8,7 @@
 #                  [--cli-version <ver>] [--prethink-version <ver>]
 #                  [--moderne-prethink-version <ver>]
 #   --skip-prethink       Skip running the refresh-prethink step
+#   --skip-custom-recipe  Skip running the custom recipe against ecommerce example
 #   --agent <name>        Target agent: claude (default), copilot, cursor, windsurf
 #   --clean               Remove cloned repos and .moderne artifacts, then exit
 #   --reset               Clean and re-initialize (equivalent to --clean + init)
@@ -22,6 +23,7 @@ REPOS_CSV="$SCRIPT_DIR/repos.csv"
 WITH_DIR="$SCRIPT_DIR/with-prethink"
 WITHOUT_DIR="$SCRIPT_DIR/no-prethink"
 SKIP_PRETHINK=false
+SKIP_CUSTOM_RECIPE=false
 AGENT="claude"
 CLEAN=false
 RESET=false
@@ -34,6 +36,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-prethink)
       SKIP_PRETHINK=true
+      shift
+      ;;
+    --skip-custom-recipe)
+      SKIP_CUSTOM_RECIPE=true
       shift
       ;;
     --agent)
@@ -66,6 +72,7 @@ while [[ $# -gt 0 ]]; do
       echo "               [--cli-version <ver>] [--prethink-version <ver>]"
       echo "               [--moderne-prethink-version <ver>]"
       echo "  --skip-prethink       Skip running the refresh-prethink step"
+      echo "  --skip-custom-recipe  Skip running the custom recipe against ecommerce example"
       echo "  --agent <name>        Target agent: claude (default), copilot, cursor, windsurf"
       echo "  --clean               Remove cloned repos and .moderne artifacts, then exit"
       echo "  --reset               Clean and re-initialize"
@@ -122,6 +129,22 @@ mod config recipes yaml install "$WITH_DIR/bryanfriedman/prethink-ecommerce-exam
 if [ "$SKIP_PRETHINK" = false ]; then
   echo "==> Running Prethink refresh in with-prethink/ (agent: $AGENT)..."
   "$SCRIPT_DIR/refresh-prethink.sh" "$WITH_DIR" "$AGENT"
+
+  # Optionally run the custom recipe against the ecommerce example (LSTs already cached from build above)
+  if [ "$SKIP_CUSTOM_RECIPE" = false ]; then
+    CUSTOM_APP="$WITH_DIR/bryanfriedman/prethink-ecommerce-example"
+    case "$AGENT" in
+      claude)  TARGET_CONFIG="CLAUDE.md" ;;
+      copilot) TARGET_CONFIG=".github/copilot-instructions.md" ;;
+      cursor)  TARGET_CONFIG=".cursor/rules/prethink.mdc" ;;
+      windsurf) TARGET_CONFIG=".windsurf/rules/prethink.md" ;;
+    esac
+    echo "==> Running custom Prethink recipe against ecommerce example..."
+    mod run "$CUSTOM_APP" --recipe com.example.prethink.CustomPrethink -PtargetConfigFile="$TARGET_CONFIG"
+    mod git apply "$CUSTOM_APP" --last-recipe-run
+  else
+    echo "==> Skipping custom recipe (--skip-custom-recipe)"
+  fi
 else
   echo "==> Skipping Prethink refresh (--skip-prethink)"
 fi

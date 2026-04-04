@@ -115,10 +115,13 @@ The prethink-ecommerce-example app has a `rewrite.yml` that extends the standard
 - `@Auditable` — required on state-changing operations (orders, payments, inventory)
 - `ServiceClient` — required base class for all service-to-service communication
 
-The custom recipe YAML is already installed by `init.sh`. To re-install if needed:
+The custom recipe is installed and run automatically by `init.sh`. If you want to run the custom recipe live as part of the demo, use `--skip-custom-recipe` during init and run it manually:
 
 ```bash
-mod config recipes yaml install with-prethink/bryanfriedman/prethink-ecommerce-example/rewrite.yml
+cd with-prethink/bryanfriedman/prethink-ecommerce-example/
+mod build .
+mod run . --recipe com.example.prethink.CustomPrethink -PtargetConfigFile=CLAUDE.md
+mod git apply . --last-recipe-run
 ```
 
 Before running the agent, look at the generated context files in `.moderne/context/` — especially the markdown files for the custom discoveries. The `longDescription` from `rewrite.yml` gets embedded into the context, giving the agent explicit instructions about when and how to apply each convention.
