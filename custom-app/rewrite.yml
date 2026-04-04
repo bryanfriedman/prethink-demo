@@ -1,0 +1,42 @@
+type: specs.openrewrite.org/v1beta/recipe
+name: com.example.prethink.CustomPrethink
+displayName: Custom Prethink with platform annotation and ServiceClient discovery
+description: >-
+  Extends the standard Prethink starter with discovery of custom
+  @RateLimited and @Auditable annotations, plus the internal platform
+  ServiceClient base class used for service-to-service communication.
+recipeList:
+  # Standard Prethink starter (architecture, quality, test coverage, etc.)
+  - io.moderne.prethink.UpdatePrethinkContextNoAiStarter
+
+  # Custom: find @RateLimited and @Auditable annotations
+  - org.openrewrite.java.search.FindAnnotations:
+      annotationPattern: "@com.example.ecommerce.annotations.RateLimited"
+  - org.openrewrite.java.search.FindAnnotations:
+      annotationPattern: "@com.example.ecommerce.annotations.Auditable"
+  - org.openrewrite.prethink.ExportContext:
+      displayName: Rate-Limited and Auditable Methods
+      shortDescription: Methods annotated with @RateLimited or @Auditable
+      longDescription: >-
+        The platform team requires @RateLimited on all public-facing endpoints
+        that accept writes or expensive queries, and @Auditable on all
+        state-changing operations affecting orders, payments, or inventory.
+        Agents must apply these annotations when adding new endpoints or
+        state-changing service methods.
+      dataTables:
+        - org.openrewrite.table.SearchResults
+
+  # Custom: find ServiceClient usage
+  - org.openrewrite.java.search.FindTypes:
+      fullyQualifiedTypeName: com.example.platform.ServiceClient
+  - org.openrewrite.prethink.ExportContext:
+      displayName: Platform ServiceClient Usage
+      shortDescription: Classes that extend or reference the internal platform ServiceClient
+      longDescription: >-
+        The platform team requires all service-to-service communication to go
+        through the ServiceClient base class, which provides standardized auth
+        token management, retry with exponential backoff, circuit breaking, and
+        observability. Agents must use this pattern when adding new external
+        service integrations.
+      dataTables:
+        - org.openrewrite.java.table.TypeUses
