@@ -5,9 +5,6 @@ with-prethink/*
 no-prethink/*
 !no-prethink/.gitkeep
 
-# Generated git repo in custom-app (created by init.sh)
-custom-app/.git
-
 # Moderne build artifacts
 .moderne/
 
