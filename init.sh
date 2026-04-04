@@ -4,11 +4,12 @@
 # into both with-prethink/ and no-prethink/ directories, then generates
 # Prethink context in with-prethink/.
 #
-# Usage: ./init.sh [--skip-prethink] [--agent <name>] [--reset]
+# Usage: ./init.sh [--skip-prethink] [--agent <name>] [--clean] [--reset]
 #                  [--cli-version <ver>] [--prethink-version <ver>]
 #   --skip-prethink       Skip running the refresh-prethink step
 #   --agent <name>        Target agent: claude (default), copilot, cursor, windsurf
-#   --reset               Remove cloned repos and .moderne artifacts, then exit
+#   --clean               Remove cloned repos and .moderne artifacts, then exit
+#   --reset               Clean and re-initialize (equivalent to --clean + init)
 #   --cli-version <ver>   Moderne CLI version (default: 4.0.6)
 #   --prethink-version <ver>  rewrite-prethink version (default: 0.3.5)
 
@@ -20,6 +21,7 @@ WITH_DIR="$SCRIPT_DIR/with-prethink"
 WITHOUT_DIR="$SCRIPT_DIR/no-prethink"
 SKIP_PRETHINK=false
 AGENT="claude"
+CLEAN=false
 RESET=false
 CLI_VERSION="4.0.6"
 PRETHINK_VERSION="0.3.5"
@@ -35,7 +37,12 @@ while [[ $# -gt 0 ]]; do
       AGENT="$2"
       shift 2
       ;;
+    --clean)
+      CLEAN=true
+      shift
+      ;;
     --reset)
+      CLEAN=true
       RESET=true
       shift
       ;;
@@ -48,11 +55,12 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: $0 [--skip-prethink] [--agent <name>] [--reset]"
+      echo "Usage: $0 [--skip-prethink] [--agent <name>] [--clean] [--reset]"
       echo "               [--cli-version <ver>] [--prethink-version <ver>]"
       echo "  --skip-prethink       Skip running the refresh-prethink step"
       echo "  --agent <name>        Target agent: claude (default), copilot, cursor, windsurf"
-      echo "  --reset               Remove cloned repos and .moderne artifacts, then exit"
+      echo "  --clean               Remove cloned repos and .moderne artifacts, then exit"
+      echo "  --reset               Clean and re-initialize"
       echo "  --cli-version <ver>   Moderne CLI version (default: 4.0.6)"
       echo "  --prethink-version <ver>  rewrite-prethink version (default: 0.3.5)"
       exit 0
@@ -76,9 +84,9 @@ clean_dir() {
   fi
 }
 
-# Reset mode
-if [ "$RESET" = true ]; then
-  echo "==> Resetting demo directories..."
+# Clean mode (also used by --reset)
+if [ "$CLEAN" = true ]; then
+  echo "==> Cleaning demo directories..."
   clean_dir "$WITH_DIR"
   clean_dir "$WITHOUT_DIR"
   # Remove custom-app git repo, .moderne artifacts, and fake remote
@@ -86,8 +94,11 @@ if [ "$RESET" = true ]; then
   rm -rf /tmp/fake-remotes/custom-app.git /tmp/fake-remotes/custom-app-gitdir
   echo "    Cleaned $SCRIPT_DIR/custom-app"
   rm -rf "$SCRIPT_DIR/.moderne"
-  echo "==> Reset complete."
-  exit 0
+  echo "==> Clean complete."
+  # If --reset, continue with init; if --clean only, exit
+  if [ "$RESET" = false ]; then
+    exit 0
+  fi
 fi
 
 if [ ! -f "$REPOS_CSV" ]; then
@@ -95,41 +106,20 @@ if [ ! -f "$REPOS_CSV" ]; then
   exit 1
 fi
 
-# Read repos.csv (skip header line)
-tail -n +2 "$REPOS_CSV" | while IFS=, read -r origin path cloneUrl branch _rest; do
-  # Skip empty lines
-  [ -z "$path" ] && continue
+# Sync repos using mod git sync so the CLI registers them in its organization
+echo "==> Syncing repos into no-prethink/..."
+mod git sync csv "$WITHOUT_DIR" "$REPOS_CSV" --with-sources
 
-  echo "==> Processing $path (branch: $branch)"
-
-  # Clone into no-prethink/
-  dest_without="$WITHOUT_DIR/$path"
-  if [ -d "$dest_without" ]; then
-    echo "    Removing existing $dest_without"
-    rm -rf "$dest_without"
-  fi
-  echo "    Cloning into no-prethink/$path..."
-  mkdir -p "$(dirname "$dest_without")"
-  git clone --branch "$branch" "$cloneUrl" "$dest_without"
-
-  # Clone into with-prethink/
-  dest_with="$WITH_DIR/$path"
-  if [ -d "$dest_with" ]; then
-    echo "    Removing existing $dest_with"
-    rm -rf "$dest_with"
-  fi
-  echo "    Cloning into with-prethink/$path..."
-  mkdir -p "$(dirname "$dest_with")"
-  git clone --branch "$branch" "$cloneUrl" "$dest_with"
-
-  echo ""
-done
+echo "==> Syncing repos into with-prethink/..."
+mod git sync csv "$WITH_DIR" "$REPOS_CSV" --with-sources
 
 # Pin CLI and recipe versions for compatibility
 # CLI 4.0.7+ has a bug where ExportContext can't read data tables (rewrite-core PR #7256 fixes this).
 # Once a CLI ships with that fix, use --cli-version LATEST --prethink-version LATEST.
 echo "==> Setting CLI to $CLI_VERSION and installing rewrite-prethink $PRETHINK_VERSION..."
 echo "version=$CLI_VERSION" > "$HOME/.moderne/cli/dist/moderne-wrapper.properties"
+# Force LST v2 — CLI 4.0.6 has a bug that persists v3 in ~/.moderne/cli/moderne.yml
+mod config features lst --version=2
 mod config recipes jar install "org.openrewrite.recipe:rewrite-prethink:$PRETHINK_VERSION"
 
 # Set up custom-app as a git repo with a fake remote so mod can build it

@@ -35,25 +35,40 @@ case "$AGENT" in
     ;;
 esac
 
+# Ensure enough heap for the embedded JVM in the polyglot RPC subprocess
+export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:--Xmx8G}"
+
 echo "==> Refreshing Prethink context in: ${SCRIPT_DIR}"
 echo "    Agent: ${AGENT}"
 echo "    Recipe: ${RECIPE}"
 echo "    Target config: ${TARGET_CONFIG}"
 echo ""
 
-# Step 1: Build LSTs
-echo "==> Building LSTs..."
-mod build "${SCRIPT_DIR}"
+# Find all git repos under this directory (excluding this directory itself).
+# This is needed because this directory lives inside a parent git repo,
+# so mod can't discover nested repos when given the parent path.
+REPO_PATHS=()
+while IFS= read -r gitdir; do
+  REPO_PATHS+=("$(dirname "$gitdir")")
+done < <(find "${SCRIPT_DIR}" -mindepth 2 -name .git -type d)
 
-# Step 2: Run prethink recipe
-echo ""
-echo "==> Running Prethink recipe..."
-mod run "${SCRIPT_DIR}" --recipe "${RECIPE}" -PtargetConfigFile="${TARGET_CONFIG}"
+if [ ${#REPO_PATHS[@]} -eq 0 ]; then
+  echo "Error: No repositories found under ${SCRIPT_DIR}"
+  exit 1
+fi
 
-# Step 3: Apply changes
-echo ""
-echo "==> Applying changes..."
-mod git apply "${SCRIPT_DIR}" --last-recipe-run
+for repo in "${REPO_PATHS[@]}"; do
+  echo "==> Building LSTs for $(basename "$repo")..."
+  mod build "$repo"
+
+  echo ""
+  echo "==> Running Prethink recipe..."
+  mod run "$repo" --recipe "${RECIPE}" -PtargetConfigFile="${TARGET_CONFIG}"
+
+  echo ""
+  echo "==> Applying changes..."
+  mod git apply "$repo" --last-recipe-run
+done
 
 echo ""
 echo "==> Prethink context refresh complete."
