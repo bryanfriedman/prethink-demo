@@ -80,7 +80,7 @@ After both sessions finish, grab the session IDs and compare.
 
 #### Claude
 
-Session ID is in the status bar or run `/session-id` inside Claude Code.
+Session ID is shown when you exit Claude Code or via the `/status` command.
 
 ```bash
 ./session-tokens.sh <no-prethink-session-id>
@@ -89,7 +89,7 @@ Session ID is in the status bar or run `/session-id` inside Claude Code.
 
 #### Copilot
 
-Session ID is shown at startup or in `~/.copilot/session-state/`.
+Session ID is available via `/session info` inside Copilot.
 
 ```bash
 ./session-tokens.sh <no-prethink-session-id> copilot
