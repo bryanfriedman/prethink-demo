@@ -125,6 +125,16 @@ mod config recipes jar install "org.openrewrite.recipe:rewrite-prethink:$PRETHIN
 echo "==> Installing custom recipe YAML..."
 mod config recipes yaml install "$WITH_DIR/bryanfriedman/prethink-ecommerce-example/rewrite.yml"
 
+# Create symlinks to session-tokens.sh in each repo directory
+echo "==> Creating session-tokens.sh symlinks..."
+for dir in \
+  "$WITH_DIR/nashtech-garage/yas" \
+  "$WITHOUT_DIR/nashtech-garage/yas" \
+  "$WITH_DIR/bryanfriedman/prethink-ecommerce-example" \
+  "$WITHOUT_DIR/bryanfriedman/prethink-ecommerce-example"; do
+  ln -sf "$SCRIPT_DIR/session-tokens.sh" "$dir/session-tokens.sh"
+done
+
 # Map agent to config file
 case "$AGENT" in
   claude)  TARGET_CONFIG="CLAUDE.md" ;;

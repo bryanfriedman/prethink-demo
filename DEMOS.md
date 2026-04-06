@@ -173,13 +173,13 @@ copilot
 ### Prompt
 
 ```
-Add a new endpoint to redeem loyalty rewards points for a customer using our external loyalty platform service. Follow the project's existing patterns for service clients and controller conventions.
+Add a new endpoint to redeem loyalty rewards points for a customer using our external loyalty platform service.
 ```
 
 ### What to Look For
 
 - **With Prethink:** The agent should use `ServiceClient` as the base class (not raw `RestTemplate` or `WebClient`), and add `@RateLimited` and `@Auditable` annotations following the platform conventions
-- **Without Prethink:** The agent will typically miss the platform conventions — using `RestTemplate`/`WebClient` directly and omitting the required annotations
+- **Without Prethink:** The agent will typically miss the platform conventions, probably omitting the required annotations and possibly using `RestTemplate`/`WebClient` directly instead of `ServiceClient`. It will likely also take twice as long and use significantly more tokens. 
 
 ---
 
