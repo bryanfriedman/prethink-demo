@@ -243,7 +243,8 @@ copilot
 ### Prompt
 
 ```
-Add a payment validation method to OrderService
+Add a payment validation method to OrderService and follow rules to maintain code quality
+metrics
 ```
 
 ### What to Look For
