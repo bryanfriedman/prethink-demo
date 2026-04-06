@@ -125,25 +125,31 @@ mod config recipes jar install "org.openrewrite.recipe:rewrite-prethink:$PRETHIN
 echo "==> Installing custom recipe YAML..."
 mod config recipes yaml install "$WITH_DIR/bryanfriedman/prethink-ecommerce-example/rewrite.yml"
 
+# Map agent to config file
+case "$AGENT" in
+  claude)  TARGET_CONFIG="CLAUDE.md" ;;
+  copilot) TARGET_CONFIG=".github/copilot-instructions.md" ;;
+  cursor)  TARGET_CONFIG=".cursor/rules/prethink.mdc" ;;
+  windsurf) TARGET_CONFIG=".windsurf/rules/prethink.md" ;;
+esac
+
 # Run prethink refresh
 if [ "$SKIP_PRETHINK" = false ]; then
-  echo "==> Running Prethink refresh in with-prethink/ (agent: $AGENT)..."
-  "$SCRIPT_DIR/refresh-prethink.sh" "$WITH_DIR" "$AGENT"
+  CUSTOM_APP="$WITH_DIR/bryanfriedman/prethink-ecommerce-example"
 
-  # Optionally run the custom recipe against the ecommerce example (LSTs already cached from build above)
+  # Run standard Prethink against yas
+  echo "==> Running Prethink refresh against yas..."
+  "$SCRIPT_DIR/refresh-prethink.sh" "$WITH_DIR/nashtech-garage/yas" "$AGENT"
+
+  # Run standard Prethink against ecommerce example, or custom recipe if not skipped
   if [ "$SKIP_CUSTOM_RECIPE" = false ]; then
-    CUSTOM_APP="$WITH_DIR/bryanfriedman/prethink-ecommerce-example"
-    case "$AGENT" in
-      claude)  TARGET_CONFIG="CLAUDE.md" ;;
-      copilot) TARGET_CONFIG=".github/copilot-instructions.md" ;;
-      cursor)  TARGET_CONFIG=".cursor/rules/prethink.mdc" ;;
-      windsurf) TARGET_CONFIG=".windsurf/rules/prethink.md" ;;
-    esac
     echo "==> Running custom Prethink recipe against ecommerce example..."
+    mod build "$CUSTOM_APP"
     mod run "$CUSTOM_APP" --recipe com.example.prethink.CustomPrethink -PtargetConfigFile="$TARGET_CONFIG"
     mod git apply "$CUSTOM_APP" --last-recipe-run
   else
-    echo "==> Skipping custom recipe (--skip-custom-recipe)"
+    echo "==> Running standard Prethink against ecommerce example..."
+    "$SCRIPT_DIR/refresh-prethink.sh" "$CUSTOM_APP" "$AGENT"
   fi
 else
   echo "==> Skipping Prethink refresh (--skip-prethink)"
