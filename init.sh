@@ -103,6 +103,17 @@ if [ ! -f "$REPOS_CSV" ]; then
   exit 1
 fi
 
+# Pin CLI and recipe versions for compatibility BEFORE any mod invocations,
+# so every subsequent mod call (including git sync) uses the pinned version.
+# CLI 4.0.7+ has a bug where ExportContext can't read data tables (rewrite-core PR #7256 fixes this).
+# Once a CLI ships with that fix, use --cli-version LATEST --prethink-version LATEST.
+echo "==> Setting CLI to $CLI_VERSION, installing rewrite-prethink $PRETHINK_VERSION and io.moderne prethink $MODERNE_PRETHINK_VERSION..."
+mkdir -p "$HOME/.moderne/cli/dist"
+echo "version=$CLI_VERSION" > "$HOME/.moderne/cli/dist/moderne-wrapper.properties"
+# Force LST v2 — CLI 4.0.6 has a bug that persists v3 in ~/.moderne/cli/moderne.yml
+mod config features lst --version=2
+mod config recipes jar install "org.openrewrite.recipe:rewrite-prethink:$PRETHINK_VERSION" "io.moderne.recipe:rewrite-prethink:$MODERNE_PRETHINK_VERSION"
+
 # Sync repos into both directories
 echo "==> Syncing repos into no-prethink/..."
 mkdir -p "$WITHOUT_DIR"
@@ -111,15 +122,6 @@ mod git sync csv "$WITHOUT_DIR" "$REPOS_CSV" --with-sources --yes
 echo "==> Syncing repos into with-prethink/..."
 mkdir -p "$WITH_DIR"
 mod git sync csv "$WITH_DIR" "$REPOS_CSV" --with-sources --yes
-
-# Pin CLI and recipe versions for compatibility
-# CLI 4.0.7+ has a bug where ExportContext can't read data tables (rewrite-core PR #7256 fixes this).
-# Once a CLI ships with that fix, use --cli-version LATEST --prethink-version LATEST.
-echo "==> Setting CLI to $CLI_VERSION, installing rewrite-prethink $PRETHINK_VERSION and io.moderne prethink $MODERNE_PRETHINK_VERSION..."
-echo "version=$CLI_VERSION" > "$HOME/.moderne/cli/dist/moderne-wrapper.properties"
-# Force LST v2 — CLI 4.0.6 has a bug that persists v3 in ~/.moderne/cli/moderne.yml
-mod config features lst --version=2
-mod config recipes jar install "org.openrewrite.recipe:rewrite-prethink:$PRETHINK_VERSION" "io.moderne.recipe:rewrite-prethink:$MODERNE_PRETHINK_VERSION"
 
 # Install custom recipe YAML
 echo "==> Installing custom recipe YAML..."
