@@ -27,9 +27,9 @@ SKIP_CUSTOM_RECIPE=false
 AGENT="claude"
 CLEAN=false
 RESET=false
-CLI_VERSION="4.0.6"
-PRETHINK_VERSION="0.3.5"
-MODERNE_PRETHINK_VERSION="0.4.0"
+CLI_VERSION="RELEASE"
+PRETHINK_VERSION="LATEST"
+MODERNE_PRETHINK_VERSION="LATEST"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -159,6 +159,9 @@ if [ "$SKIP_PRETHINK" = false ]; then
     mod build "$CUSTOM_APP"
     mod run "$CUSTOM_APP" --recipe com.example.prethink.CustomPrethink -PtargetConfigFile="$TARGET_CONFIG"
     mod git apply "$CUSTOM_APP" --last-recipe-run
+    mod git add "$CUSTOM_APP" --last-recipe-run
+    mod git commit "$CUSTOM_APP" -m "Apply custom prethink recipe." --last-recipe-run
+    mod build "$CUSTOM_APP"
   else
     echo "==> Running standard Prethink against ecommerce example..."
     "$SCRIPT_DIR/refresh-prethink.sh" "$CUSTOM_APP" "$AGENT"

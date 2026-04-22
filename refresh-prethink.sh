@@ -60,6 +60,9 @@ mod run "$TARGET_DIR" --recipe "${RECIPE}" -PtargetConfigFile="${TARGET_CONFIG}"
 echo ""
 echo "==> Applying changes..."
 mod git apply "$TARGET_DIR" --last-recipe-run
+mod git add "$TARGET_DIR" --last-recipe-run
+mod git commit "$TARGET_DIR" -m "Apply prethink recipe." --last-recipe-run
+mod build "$TARGET_DIR"
 
 echo ""
 echo "==> Prethink context refresh complete."
