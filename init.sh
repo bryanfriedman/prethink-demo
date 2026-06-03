@@ -1,84 +1,58 @@
 #!/usr/bin/env bash
 #
-# Initializes the demo environment by cloning repositories from repos.csv
-# into both with-prethink/ and no-prethink/ directories, then generates
-# Prethink context in with-prethink/.
+# Initializes the demo environment by cloning the repositories in repos.csv
+# into with-prethink/ and generating Prethink context for them.
 #
-# Usage: ./init.sh [--skip-prethink] [--agent <name>] [--clean] [--reset]
-#                  [--cli-version <ver>] [--prethink-version <ver>]
-#                  [--moderne-prethink-version <ver>]
+# Repos:
+#   shopizer-ecommerce/shopizer          -> standard Prethink (Demos 1 & 3: platform context + code quality)
+#   bryanfriedman/prethink-ecommerce-example -> custom Prethink (Demo 2: platform conventions)
+#
+# Usage: ./init.sh [--skip-prethink] [--skip-custom-recipe] [--agent <name>]
+#                  [--clean] [--reset] [--cli-version <ver>]
+#                  [--prethink-version <ver>] [--moderne-prethink-version <ver>]
 #   --skip-prethink       Skip running the refresh-prethink step
-#   --skip-custom-recipe  Skip running the custom recipe against ecommerce example
+#   --skip-custom-recipe  Skip the custom recipe against the ecommerce example
 #   --agent <name>        Target agent: claude (default), copilot, cursor, windsurf
 #   --clean               Remove cloned repos and .moderne artifacts, then exit
 #   --reset               Clean and re-initialize (equivalent to --clean + init)
-#   --cli-version <ver>   Moderne CLI version (default: 4.0.6)
-#   --prethink-version <ver>  org.openrewrite.recipe:rewrite-prethink version (default: 0.3.5)
-#   --moderne-prethink-version <ver>  io.moderne.recipe:rewrite-prethink version (default: 0.4.0)
+#   --cli-version <ver>   Moderne CLI version (default: 4.2.12 — see note below)
+#   --prethink-version <ver>          org.openrewrite.recipe:rewrite-prethink (default: RELEASE)
+#   --moderne-prethink-version <ver>  io.moderne.recipe:rewrite-prethink (default: RELEASE)
+#
+# Version note: CLI is pinned to a stable release (4.2.12). Do NOT use RELEASE/LATEST
+# blindly — the 4.3.0-SNAPSHOT line has an LST-deserialization bug that fails on large
+# source sets (see memory: prethink-demo-cli-bug). Recipes are pinned to RELEASE (stable).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPOS_CSV="$SCRIPT_DIR/repos.csv"
 WITH_DIR="$SCRIPT_DIR/with-prethink"
-WITHOUT_DIR="$SCRIPT_DIR/no-prethink"
 SKIP_PRETHINK=false
 SKIP_CUSTOM_RECIPE=false
 AGENT="claude"
 CLEAN=false
 RESET=false
-CLI_VERSION="RELEASE"
-PRETHINK_VERSION="LATEST"
-MODERNE_PRETHINK_VERSION="LATEST"
+CLI_VERSION="4.2.12"
+PRETHINK_VERSION="RELEASE"
+MODERNE_PRETHINK_VERSION="RELEASE"
+
+# Ensure enough heap for the embedded JVM in the polyglot RPC subprocess
+export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:--Xmx8G}"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --skip-prethink)
-      SKIP_PRETHINK=true
-      shift
-      ;;
-    --skip-custom-recipe)
-      SKIP_CUSTOM_RECIPE=true
-      shift
-      ;;
-    --agent)
-      AGENT="$2"
-      shift 2
-      ;;
-    --clean)
-      CLEAN=true
-      shift
-      ;;
-    --reset)
-      CLEAN=true
-      RESET=true
-      shift
-      ;;
-    --cli-version)
-      CLI_VERSION="$2"
-      shift 2
-      ;;
-    --prethink-version)
-      PRETHINK_VERSION="$2"
-      shift 2
-      ;;
-    --moderne-prethink-version)
-      MODERNE_PRETHINK_VERSION="$2"
-      shift 2
-      ;;
+    --skip-prethink)      SKIP_PRETHINK=true; shift ;;
+    --skip-custom-recipe) SKIP_CUSTOM_RECIPE=true; shift ;;
+    --agent)              AGENT="$2"; shift 2 ;;
+    --clean)              CLEAN=true; shift ;;
+    --reset)              CLEAN=true; RESET=true; shift ;;
+    --cli-version)              CLI_VERSION="$2"; shift 2 ;;
+    --prethink-version)         PRETHINK_VERSION="$2"; shift 2 ;;
+    --moderne-prethink-version) MODERNE_PRETHINK_VERSION="$2"; shift 2 ;;
     -h|--help)
-      echo "Usage: $0 [--skip-prethink] [--agent <name>] [--clean] [--reset]"
-      echo "               [--cli-version <ver>] [--prethink-version <ver>]"
-      echo "               [--moderne-prethink-version <ver>]"
-      echo "  --skip-prethink       Skip running the refresh-prethink step"
-      echo "  --skip-custom-recipe  Skip running the custom recipe against ecommerce example"
-      echo "  --agent <name>        Target agent: claude (default), copilot, cursor, windsurf"
-      echo "  --clean               Remove cloned repos and .moderne artifacts, then exit"
-      echo "  --reset               Clean and re-initialize"
-      echo "  --cli-version <ver>   Moderne CLI version (default: 4.0.6)"
-      echo "  --prethink-version <ver>  org.openrewrite.recipe:rewrite-prethink version (default: 0.3.5)"
-      echo "  --moderne-prethink-version <ver>  io.moderne.recipe:rewrite-prethink version (default: 0.4.0)"
+      sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -91,7 +65,7 @@ done
 # Clean mode (also used by --reset)
 if [ "$CLEAN" = true ]; then
   echo "==> Cleaning demo directories..."
-  rm -rf "$WITH_DIR" "$WITHOUT_DIR" "$SCRIPT_DIR/.moderne"
+  rm -rf "$WITH_DIR" "$SCRIPT_DIR/no-prethink" "$SCRIPT_DIR/.moderne"
   echo "==> Clean complete."
   if [ "$RESET" = false ]; then
     exit 0
@@ -105,20 +79,14 @@ fi
 
 # Pin CLI and recipe versions for compatibility BEFORE any mod invocations,
 # so every subsequent mod call (including git sync) uses the pinned version.
-# CLI 4.0.7+ has a bug where ExportContext can't read data tables (rewrite-core PR #7256 fixes this).
-# Once a CLI ships with that fix, use --cli-version LATEST --prethink-version LATEST.
-echo "==> Setting CLI to $CLI_VERSION, installing rewrite-prethink $PRETHINK_VERSION and io.moderne prethink $MODERNE_PRETHINK_VERSION..."
+echo "==> Pinning CLI to $CLI_VERSION; installing rewrite-prethink $PRETHINK_VERSION and io.moderne prethink $MODERNE_PRETHINK_VERSION..."
 mkdir -p "$HOME/.moderne/cli/dist"
 echo "version=$CLI_VERSION" > "$HOME/.moderne/cli/dist/moderne-wrapper.properties"
-# Force LST v2 — CLI 4.0.6 has a bug that persists v3 in ~/.moderne/cli/moderne.yml
+# Force LST v2 — this is the serialization format the demo context was validated against.
 mod config features lst --version=2
 mod config recipes jar install "org.openrewrite.recipe:rewrite-prethink:$PRETHINK_VERSION" "io.moderne.recipe:rewrite-prethink:$MODERNE_PRETHINK_VERSION"
 
-# Sync repos into both directories
-echo "==> Syncing repos into no-prethink/..."
-mkdir -p "$WITHOUT_DIR"
-mod git sync csv "$WITHOUT_DIR" "$REPOS_CSV" --with-sources --yes
-
+# Sync repos into with-prethink/
 echo "==> Syncing repos into with-prethink/..."
 mkdir -p "$WITH_DIR"
 mod git sync csv "$WITH_DIR" "$REPOS_CSV" --with-sources --yes
@@ -130,10 +98,8 @@ mod config recipes yaml install "$WITH_DIR/bryanfriedman/prethink-ecommerce-exam
 # Create symlinks to session-tokens.sh in each repo directory
 echo "==> Creating session-tokens.sh symlinks..."
 for dir in \
-  "$WITH_DIR/nashtech-garage/yas" \
-  "$WITHOUT_DIR/nashtech-garage/yas" \
-  "$WITH_DIR/bryanfriedman/prethink-ecommerce-example" \
-  "$WITHOUT_DIR/bryanfriedman/prethink-ecommerce-example"; do
+  "$WITH_DIR/shopizer-ecommerce/shopizer" \
+  "$WITH_DIR/bryanfriedman/prethink-ecommerce-example"; do
   ln -sf "$SCRIPT_DIR/session-tokens.sh" "$dir/session-tokens.sh"
 done
 
@@ -147,13 +113,14 @@ esac
 
 # Run prethink refresh
 if [ "$SKIP_PRETHINK" = false ]; then
+  SHOPIZER="$WITH_DIR/shopizer-ecommerce/shopizer"
   CUSTOM_APP="$WITH_DIR/bryanfriedman/prethink-ecommerce-example"
 
-  # Run standard Prethink against yas
-  echo "==> Running Prethink refresh against yas..."
-  "$SCRIPT_DIR/refresh-prethink.sh" "$WITH_DIR/nashtech-garage/yas" "$AGENT"
+  # Standard Prethink against shopizer (Demos 1 & 3)
+  echo "==> Running Prethink refresh against shopizer..."
+  "$SCRIPT_DIR/refresh-prethink.sh" "$SHOPIZER" "$AGENT"
 
-  # Run standard Prethink against ecommerce example, or custom recipe if not skipped
+  # Custom Prethink recipe against the ecommerce example (Demo 2), or standard if skipped
   if [ "$SKIP_CUSTOM_RECIPE" = false ]; then
     echo "==> Running custom Prethink recipe against ecommerce example..."
     mod build "$CUSTOM_APP"

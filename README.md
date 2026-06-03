@@ -1,6 +1,6 @@
 # Moderne Prethink Demo
 
-Demonstrates how Moderne Prethink improves AI coding agent effectiveness by providing rich codebase context upfront.
+Demonstrates how Moderne Prethink improves AI coding agent effectiveness by providing rich, resolved codebase context upfront — so agents reason from facts instead of spelunking.
 
 ## Prerequisites
 
@@ -14,37 +14,23 @@ Demonstrates how Moderne Prethink improves AI coding agent effectiveness by prov
 ./init.sh
 ```
 
-This will:
-1. Clone all repositories listed in `repos.csv` into both `with-prethink/` and `no-prethink/`
-2. Run `refresh-prethink.sh` on `with-prethink/` to generate Prethink context (build LSTs, run recipe, apply changes)
+Clones the demo repos and generates their Prethink context. Use `--skip-prethink` to clone only, or `--reset` to start fresh.
 
-Use `--skip-prethink` to clone only, without generating context. Use `--clean` to remove cloned directories, or `--reset` to clean and re-initialize.
+> The CLI is pinned to a stable release (`4.2.12`); pass `--cli-version` to override.
 
-## Directory Structure
+## Demos
 
-```
-.
-├── init.sh                         # Setup script — run this first
-├── repos.csv                       # Repositories to clone for the demo
-├── refresh-prethink.sh             # Regenerates Prethink context for a directory
-├── session-tokens.sh               # Token usage reporter for agent sessions
-├── DEMOS.md                        # Step-by-step demo walkthrough
-├── with-prethink/                  # Cloned repos + Prethink context (generated)
-└── no-prethink/                    # Cloned repos without context (generated)
-```
+Three single-run demos, each showing an agent working from resolved Prethink context. See [DEMOS.md](DEMOS.md) for step-by-step instructions.
 
-## Token Counting
+1. **Prethink on a real platform** — Open the context Prethink resolves from Shopizer, a large open-source Spring e-commerce platform: architecture map, API contracts, quality metrics, test gaps. All deterministic — none of it requiring the agent to read source.
+2. **Customizing Prethink** — A custom recipe teaches Prethink to discover your platform's own conventions (a required base client, rate-limiting and audit annotations). The agent then applies them on a new endpoint, first try.
+3. **Code quality as agent feedback** — Prethink flags a real God Class in Shopizer with metric evidence. Asked to add to it, a quality-aware agent cites the signal and refactors instead of piling on.
+
+## Token usage
 
 Report token usage for a completed agent session:
 
 ```bash
-# Claude Code (default)
-./session-tokens.sh <session-id>
-
-# GitHub Copilot
-./session-tokens.sh <session-id> copilot
+./session-tokens.sh <session-id>           # Claude Code
+./session-tokens.sh <session-id> copilot   # GitHub Copilot
 ```
-
-## Demos
-
-See [DEMOS.md](DEMOS.md) for detailed step-by-step instructions for each scenario.

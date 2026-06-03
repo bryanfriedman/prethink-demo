@@ -1,254 +1,179 @@
 # Prethink Demos
 
+Three short demos showing how Moderne Prethink gives AI coding agents resolved, structured context to work from — so they reason from facts instead of exploring blindly. Step-by-step walkthroughs are below.
+
+| Demo | Repo | What it shows |
+|------|------|---------------|
+| **1 — Prethink on the SaaS Platform** | `shopizer` | Generate context on the platform, then watch a local agent use it |
+| **2 — Customizing Prethink** | `prethink-ecommerce-example` | Extend Prethink to discover your own platform conventions; the agent follows them |
+| **3 — Code quality as agent feedback** | `shopizer` | The agent reasons from a real God Class signal instead of piling on |
+
 ## Prerequisites
 
-Run `./init.sh` to set up the demo environment. Use `--agent copilot` if demoing Copilot.
+Run `./init.sh` to set up the demo environment (pins the CLI to a stable `4.2.12`, clones the repos, generates Prethink context). Use `--agent copilot` if demoing Copilot.
 
 ```bash
-# For Claude (default)
-./init.sh
-
-# For Copilot
+./init.sh            # Claude (default)
 ./init.sh --agent copilot
 ```
 
-Install `tree` if you don't have it: `brew install tree`
+Install helpers if needed: `brew install tree duckdb`.
 
 ---
 
-## 1. Side-by-Side Token Comparison
+## Demo 1 — Prethink on the SaaS Platform
 
-_Compare token usage when an agent works with vs. without Prethink context._
+_Two parts. First, on the Moderne Platform, see how the context is generated and what's in it. Then, in a local agent, watch it get used. This is "Prethink with agents" at the base level — the customization comes in Demo 2._
 
-### Setup
+### Part 1 — On the platform: the recipe and the context
 
-Open two terminal windows side by side.
+Done live on the **Moderne Platform** — there's no local step for this part, just the walkthrough:
 
-#### Claude
+- Run the Prethink recipe against `shopizer` and watch it produce the context.
+- Walk the data tables it generates — architecture, API contracts, quality metrics, test gaps — the resolved knowledge, built deterministically from the LST (no AI, no embeddings).
+- This is exactly what lands in the repo as `.moderne/context/`, alongside a `CLAUDE.md` that tells the agent to read it first. `shopizer` is a real OSS Spring platform, ~6,500 methods — far too big for an agent to read its way through.
 
-```bash
-# Terminal 1 — No Prethink
-cd no-prethink/nashtech-garage/yas/
-ls CLAUDE.md && tree .moderne/context
+### Part 2 — In the local agent: using the context
 
-# Terminal 2 — With Prethink
-cd with-prethink/nashtech-garage/yas/
-ls CLAUDE.md && tree .moderne/context
-```
-
-#### Copilot
+The context is already populated in the repo (`init.sh` committed it). Switch to the agent and prompt it.
 
 ```bash
-# Terminal 1 — No Prethink
-cd no-prethink/nashtech-garage/yas/
-ls .github/copilot-instructions.md && tree .moderne/context
-
-# Terminal 2 — With Prethink
-cd with-prethink/nashtech-garage/yas/
-ls .github/copilot-instructions.md && tree .moderne/context
+cd with-prethink/shopizer-ecommerce/shopizer
+claude     # or: copilot
 ```
 
-In Terminal 2, take a look at the agent instructions file to see what Prethink generated (`cat CLAUDE.md` or `cat .github/copilot-instructions.md`).
+**Prompt:** `Which parts of the platform handle order fulfillment, and what would I touch to add a new shipping carrier?`
 
-### Run the Agent
+**Goal:** the agent answers by reading `.moderne/context/` (e.g. `external-service-calls.csv` surfaces the USPS/UPS integrations; `architecture.md` the components) — not by exploring across 6,500 methods. It cites Prethink as the source.
 
-Use the same prompt in both terminals, then compare token counts.
+### What to look for
 
-#### Claude
-
-```bash
-# Both terminals
-claude
-```
-
-#### Copilot
-
-```bash
-# Both terminals
-copilot
-```
-
-### Prompt
-
-```
-If I modify the order entity, what other services will be affected?
-```
-
-### Check Token Usage
-
-After both sessions finish, grab the session IDs and compare.
-
-#### Claude
-
-Session ID is shown when you exit Claude Code or via the `/status` command.
-
-```bash
-./session-tokens.sh <no-prethink-session-id>
-./session-tokens.sh <with-prethink-session-id>
-```
-
-#### Copilot
-
-Session ID is available via `/session info` inside Copilot.
-
-```bash
-./session-tokens.sh <no-prethink-session-id> copilot
-./session-tokens.sh <with-prethink-session-id> copilot
-```
-
-### What to Look For
-
-- The no-prethink agent will spawn subagents and read many files to explore the codebase
-- The with-prethink agent has architecture context already and should answer more directly
-- Compare total token counts — with-prethink should use significantly fewer tokens
+- A few targeted context lookups instead of a sprawl of source-file exploration — resolved context, not retrieved text.
+- The answer is accurate because the facts were precomputed, not inferred.
 
 ---
 
-## 2. Custom Prethink Recipe
+## Demo 2 — Customizing Prethink
 
-_Show how a custom Prethink recipe gives agents domain-specific understanding of platform conventions._
+_The second part of "Prethink with agents." Demo 1 used the context Prethink generates out of the box; here you **extend** Prethink to discover your org's own rules, and the agent follows them. The customization is the point; the agent following the rules is the payoff._
 
-### Background
+### The customization (the hero beat)
 
-The prethink-ecommerce-example app has a `rewrite.yml` that extends the standard Prethink recipe with discovery of:
-- `@RateLimited` — required on public-facing write/query endpoints
-- `@Auditable` — required on state-changing operations (orders, payments, inventory)
+`prethink-ecommerce-example` ships a custom Prethink recipe in `rewrite.yml`. It extends the standard starter with discovery of three platform rules that exist nowhere in the file an agent would be editing:
+
+```bash
+cd with-prethink/bryanfriedman/prethink-ecommerce-example
+cat rewrite.yml
+```
+
+Walk what it does:
+- Starts from the standard `io.moderne.prethink.UpdatePrethinkContextNoAiStarter` (architecture, quality, tests…)
+- Adds `FindAnnotations` for `@RateLimited` and `@Auditable`, and `FindTypes` for the platform `ServiceClient`
+- Pipes each into `ExportContext` with a `longDescription` that tells the agent **when and why** to apply the rule
+
+The three rules it teaches Prethink to surface:
 - `ServiceClient` — required base class for all service-to-service communication
+- `@RateLimited` — required on public-facing write / expensive-query endpoints
+- `@Auditable` — required on state-changing operations (orders, payments, inventory)
 
-The custom recipe is installed and run automatically by `init.sh`. If you want to run the custom recipe live as part of the demo, use `--skip-custom-recipe` during init and run it manually:
+### The context that customization produces
+
+Only because of that recipe, the agent gets two context files the standard starter would never generate:
 
 ```bash
-cd with-prethink/bryanfriedman/prethink-ecommerce-example/
+cat .moderne/context/platform-service-client-usage.md
+cat .moderne/context/rate-limited-and-auditable-methods.md
+```
+
+Note the embedded `longDescription` — your instructions, delivered to any agent as resolved context.
+
+_(Optional — run the custom recipe live to regenerate the context:)_
+
+```bash
 mod build .
 mod run . --recipe com.example.prethink.CustomPrethink -PtargetConfigFile=CLAUDE.md
 mod git apply . --last-recipe-run
 ```
 
-Before running the agent, look at the generated context files in `.moderne/context/` — especially the markdown files for the custom discoveries. The `longDescription` from `rewrite.yml` gets embedded into the context, giving the agent explicit instructions about when and how to apply each convention.
+### Goal (state this up front)
 
-### Setup
+A correct implementation will:
+1. Use **`ServiceClient`** as the base class for the external call (not raw `RestTemplate` / `WebClient`)
+2. Add **`@RateLimited`** to the new public endpoint
+3. Add **`@Auditable`** to the state-changing operation
 
-Open two terminal windows side by side.
-
-#### Claude
-
-```bash
-# Terminal 1 — No Prethink
-cd no-prethink/bryanfriedman/prethink-ecommerce-example/
-ls CLAUDE.md && tree .moderne/context
-
-# Terminal 2 — With Prethink
-cd with-prethink/bryanfriedman/prethink-ecommerce-example/
-ls CLAUDE.md && tree .moderne/context
-```
-
-#### Copilot
+### Run
 
 ```bash
-# Terminal 1 — No Prethink
-cd no-prethink/bryanfriedman/prethink-ecommerce-example/
-ls .github/copilot-instructions.md && tree .moderne/context
-
-# Terminal 2 — With Prethink
-cd with-prethink/bryanfriedman/prethink-ecommerce-example/
-ls .github/copilot-instructions.md && tree .moderne/context
+claude     # or: copilot
 ```
 
-### Run the Agent
+**Prompt:** `Add a new endpoint to redeem loyalty rewards points for a customer using our external loyalty platform service.`
 
-#### Claude
+### What to look for
 
-```bash
-# Both terminals
-claude
-```
-
-#### Copilot
-
-```bash
-# Both terminals
-copilot
-```
-
-### Prompt
-
-```
-Add a new endpoint to redeem loyalty rewards points for a customer using our external loyalty platform service.
-```
-
-### What to Look For
-
-- **With Prethink:** The agent should use `ServiceClient` as the base class (not raw `RestTemplate` or `WebClient`), and add `@RateLimited` and `@Auditable` annotations following the platform conventions
-- **Without Prethink:** The agent will typically miss the platform conventions, probably omitting the required annotations and possibly using `RestTemplate`/`WebClient` directly instead of `ServiceClient`. It will likely also take twice as long and use significantly more tokens. 
+- The payoff of the customization: the agent reads **your** custom-discovered context and checks all three boxes — applying rules that are invisible in the surrounding code.
+- The takeaway isn't just "the agent followed conventions" — it's that **you taught Prethink to surface them**, deterministically, for any agent on any task. Prethink is a platform you extend, not a fixed feature.
 
 ---
 
-## 3. Code Quality
+## Demo 3 — Code quality as agent feedback
 
-_Demonstrate how Prethink-informed agents produce higher quality code — specifically, recognizing LCOM (Lack of Cohesion of Methods) and avoiding making a bloated class worse._
+_Two parts, like Demo 1. First, on the Moderne Platform, see the code-quality intelligence Prethink computes. Then, in a local agent, watch it reason from that same data on a real God Class._
 
-### Background
+### Part 1 — On the platform: the quality visualizations
 
-`OrderService` in the prethink-ecommerce-example app was intentionally designed with three distinct responsibility groups:
-1. **Order lifecycle** — uses `orderRepository`, `orderValidator`
-2. **Reporting/analytics** — uses `reportingDao`, `metricsCollector`
-3. **Notifications** — uses `emailService`, `notificationConfig`
+Done live on the **Moderne Platform** — the same recipes that produce agent-readable CSVs also power human-facing views:
 
-Plus a feature-envy method (`formatCustomerInvoice`) and a high-complexity method (`calculateFinalPrice`). Prethink's code quality analysis should flag the high LCOM score.
+- Debt treemap — methods sized by volume, colored by debt
+- Coupling–cohesion quadrant — healthy / spaghetti / hub / island
+- Test-gap heatmap — untested methods by risk score
+- Maintainability dashboard across repos
 
-### Setup
+This is the quality signal Prethink resolves from the LST — and it's the same data the agent reads in Part 2.
 
-Open two terminal windows side by side. Prethink context should already be generated from `init.sh`.
+### Part 2 — In the local agent: reasoning from the signal
 
-#### Claude
+`shopizer` contains authentic, organically-grown code smells. The headline offender:
 
-```bash
-# Terminal 1 — No Prethink
-cd no-prethink/bryanfriedman/prethink-ecommerce-example/
-ls CLAUDE.md && tree .moderne/context
+- **`OrderServiceImpl`** → `GOD_CLASS`, severity **HIGH**, evidence `WMC=81, TCC=0.08, ATFD=66`
 
-# Terminal 2 — With Prethink
-cd with-prethink/bryanfriedman/prethink-ecommerce-example/
-ls CLAUDE.md && tree .moderne/context
-```
-
-#### Copilot
+(For maximum drama, `OrderFacadeImpl` is worse still: `WMC=190`, 41 methods. Swap it in if you prefer.)
 
 ```bash
-# Terminal 1 — No Prethink
-cd no-prethink/bryanfriedman/prethink-ecommerce-example/
-ls .github/copilot-instructions.md && tree .moderne/context
-
-# Terminal 2 — With Prethink
-cd with-prethink/bryanfriedman/prethink-ecommerce-example/
-ls .github/copilot-instructions.md && tree .moderne/context
+cd with-prethink/shopizer-ecommerce/shopizer
+duckdb -c "SELECT \"Class name\", Severity, Evidence FROM '.moderne/context/code-smells.csv' WHERE \"Smell type\"='GOD_CLASS' AND Severity='HIGH' ORDER BY 1 LIMIT 10"
 ```
 
-### Run the Agent
+Show that this is a **real** detection on real OSS code — not a hand-built example.
 
-#### Claude
+### Goal (state this up front)
+
+A quality-aware change will:
+1. **Recognize `OrderServiceImpl` is already a God Class** and cite the metric evidence from Prethink
+2. **Not add another method to it** (which would make cohesion worse)
+3. **Recommend extraction** — a focused collaborator (e.g. a dedicated calculator/service) instead
+
+### Run
 
 ```bash
-# Both terminals
-claude
+claude     # or: copilot
 ```
 
-#### Copilot
+**Prompt:** `Add logic to OrderServiceImpl to calculate loyalty points earned for a completed order. Follow our code quality standards.`
+
+### What to look for
+
+- The agent queries `code-smells.csv` / `class-quality-metrics.csv`, sees `OrderServiceImpl` is a HIGH-severity God Class, and **pushes back on adding to it** — proposing a separate, cohesive component and citing the metric.
+- **Test-health tease:** `cat .moderne/context/test-gaps.md` — Prethink also ranks untested, high-risk methods, so the agent knows where new code needs coverage. Quality data goes to the *agent*, not just a dashboard.
+
+---
+
+## Reporting token usage (optional)
+
+Report a completed session's token usage with `session-tokens.sh`:
 
 ```bash
-# Both terminals
-copilot
+./session-tokens.sh <session-id>            # Claude: session ID via /status or on exit
+./session-tokens.sh <session-id> copilot    # Copilot: /session info
 ```
-
-### Prompt
-
-```
-Add a payment validation method to OrderService and follow rules to maintain code quality
-metrics
-```
-
-### What to Look For
-
-- **With Prethink:** The agent should notice the LCOM stat and recognize that `OrderService` already has too many responsibilities. Instead of blindly adding another method, it should suggest refactoring — e.g., extracting payment validation into a separate service or adding it to the existing `OrderValidator`
-- **Without Prethink:** The agent will likely just add a new `validatePayment()` method directly to `OrderService`, making the cohesion problem worse
-- The key insight is that Prethink context helps agents make architectural decisions, not just syntactically correct ones
