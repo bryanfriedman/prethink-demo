@@ -39,7 +39,7 @@ SKIP_CUSTOM_RECIPE=false
 AGENTS="claude copilot"
 CLEAN=false
 RESET=false
-CLI_VERSION="4.2.12"
+CLI_VERSION="RELEASE"
 PRETHINK_VERSION="RELEASE"
 MODERNE_PRETHINK_VERSION="RELEASE"
 
@@ -133,12 +133,26 @@ echo "==> Syncing repos into with-prethink/..."
 mkdir -p "$WITH_DIR"
 mod git sync csv "$WITH_DIR" "$REPOS_CSV" --with-sources --yes
 
-# Sync the same repos into no-prethink/ as clean clones — the baseline for token
-# comparison. Same branches/commits as with-prethink, but no Prethink context is
-# generated here; these are left exactly as an agent would see them unaided.
-echo "==> Syncing repos into no-prethink/ (clean baseline, no Prethink context)..."
-mkdir -p "$NO_PRETHINK_DIR"
-mod git sync csv "$NO_PRETHINK_DIR" "$REPOS_CSV" --yes
+# Clone the same repos into no-prethink/ as pristine clones — the baseline for token
+# comparison. Same branches/commits as with-prethink, but no Prethink context and no
+# Moderne artifacts at all; left exactly as an agent would see them unaided. We use a
+# plain git clone (not `mod git sync`, which only materializes source with
+# --with-sources and would scatter .moderne/ metadata into the baseline tree).
+echo "==> Cloning clean baseline repos into no-prethink/ (no Prethink context)..."
+rm -rf "$NO_PRETHINK_DIR/.moderne"   # in case a prior `mod git sync` left metadata
+tail -n +2 "$REPOS_CSV" | while IFS=, read -r _origin path cloneUrl branch; do
+  path="${path//[$'\r\n']/}"; cloneUrl="${cloneUrl//[$'\r\n']/}"; branch="${branch//[$'\r\n']/}"
+  [ -z "$path" ] && continue
+  dest="$NO_PRETHINK_DIR/$path"
+  if [ -d "$dest/.git" ]; then
+    echo "    $path already cloned — skipping"
+    continue
+  fi
+  rm -rf "$dest"                      # clear any empty placeholder from a failed sync
+  mkdir -p "$(dirname "$dest")"
+  echo "    Cloning $path @ $branch"
+  git clone --quiet --depth 1 --branch "$branch" "$cloneUrl" "$dest"
+done
 
 # Install custom recipe YAML
 echo "==> Installing custom recipe YAML..."

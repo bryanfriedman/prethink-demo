@@ -51,16 +51,27 @@ cd with-prethink/shopizer-ecommerce/shopizer
 claude     # or: copilot
 ```
 
-**Prompt:** `Which parts of the platform handle order shipping, and what external shipping carriers does it integrate with?`
+**Prompt:** `What will break if I change the Order entity?`
 
-**Goal:** the agent answers entirely from `.moderne/context/` — `architecture.md` for the shipping components, `service-endpoints.csv` for the `/shipping/*` APIs, and `external-service-calls.csv` for the USPS/UPS carrier integrations — not by exploring across 6,500 methods. It cites Prethink as the source.
+**Goal:** the agent assembles the blast radius from the resolved data tables — not by grepping for `Order` usages across ~6,500 methods. It reads, in parallel:
 
-> This is an **orientation** question in the platform's own vocabulary (order, shipping, carriers), so the resolved context answers it completely. Avoid "how would I add/change X" phrasing here — that pulls the agent into reading source to learn the extension pattern (which is the point of Demos 2 and 3, not this one).
+- `data-assets.csv` — the related entities that reference `Order` (`OrderProduct`, `OrderTotal`, `OrderStatusHistory`, `OrderAttribute`, `OrderAccount`, `Transaction`)
+- `database-connections.csv` — the `ORDERS` table and its child tables (`ORDER_PRODUCT`, `ORDER_TOTAL`, `ORDER_STATUS_HISTORY`, …)
+- `service-endpoints.csv` / `api-contracts.md` — the ~24 order endpoints exposed (OrderApi, OrderPaymentApi, OrderShippingApi, OrderStatusHistoryApi, OrderTotalApi)
+- `architecture.md` — the order components and where they sit
+
+…then synthesizes the impact and cites Prethink. No source files opened.
+
+> This is a cross-cutting **impact** question — exactly what Prethink's `CLAUDE.md` routes to the data tables ("for data-flow / dependency questions, query these context files in parallel on the first turn"). The blast radius is precomputed from the LST, so the agent reads a handful of resolved tables instead of spelunking for references.
 
 ### What to look for
 
-- A few targeted context lookups instead of a sprawl of source-file exploration — resolved context, not retrieved text.
-- The answer is accurate because the facts were precomputed, not inferred.
+- **A few parallel context-table reads, then a synthesized blast radius** — resolved facts, not a grep sweep for `Order`.
+- The impact is accurate because the relationships were precomputed from the LST, not inferred from a partial search.
+
+_If your pre-run shows the agent still grepping source, make the instruction explicit — demo-safe, and it proves the context is sufficient:_
+
+> `Using only the Prethink context in .moderne/context/, what will break if I change the Order entity? Don't read source files.`
 
 ---
 

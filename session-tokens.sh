@@ -106,65 +106,80 @@ report_copilot() {
   selected_model=$(grep '"session.start"' "$EVENTS" | head -1 | sed -n 's/.*"selectedModel":"\([^"]*\)".*/\1/p')
   echo "Session:  $SESSION_ID"
 
-  grep '"session.shutdown"' "$EVENTS" | \
-    sed 's/.*"modelMetrics":{//' | \
-    grep -o '"[^"]*":{"requests":{"count":[0-9]*,"cost":[0-9]*},"usage":{"inputTokens":[0-9]*,"outputTokens":[0-9]*,"cacheReadTokens":[0-9]*,"cacheWriteTokens":[0-9]*}}' | \
-    awk -v primary_model="$selected_model" -F'[":,{}]+' '{
-      model=""; reqs=0; input=0; output=0; cread=0; cwrite=0
-      for (i=1; i<=NF; i++) {
-        if ($i == "requests") { for (j=i+1; j<=NF; j++) { if ($j == "count") { reqs=$(j+1); break } } }
-        if ($i == "inputTokens") { input=$(i+1) }
-        if ($i == "outputTokens") { output=$(i+1) }
-        if ($i == "cacheReadTokens") { cread=$(i+1) }
-        if ($i == "cacheWriteTokens") { cwrite=$(i+1) }
-      }
-      for (i=1; i<=NF; i++) { if ($i != "" && $i !~ /^(requests|count|cost|usage|inputTokens|outputTokens|cacheReadTokens|cacheWriteTokens|[0-9]+)$/) { model=$i; break } }
-      if (agent_model == "") {
-        agent_model = primary_model
-        if (agent_model == "" || agent_model == "unknown") {
-          agent_model = model
-        }
-      }
-      bucket = (model == agent_model) ? "Agent" : "Subagents"
-      groups[bucket] = 1
-      req_count[bucket] += reqs
-      input_tok[bucket] += input
-      output_tok[bucket] += output
-      cache_read[bucket] += cread
-      cache_write[bucket] += cwrite
-      total_reqs += reqs
-      total_input += input
-      total_output += output
-      total_cread += cread
-      total_cwrite += cwrite
-      n_groups = length(groups)
-    }
-    END {
-      split("Agent Subagents", order, " ")
-      for (k=1; k<=2; k++) {
-        g = order[k]
-        if (!(g in groups)) continue
-        group_total = input_tok[g] + output_tok[g] + cache_read[g] + cache_write[g]
-        printf "  %s\n", g
-        printf "    Requests:           %\047d\n", req_count[g]
-        printf "    Input tokens:       %\047d\n", input_tok[g]
-        printf "    Output tokens:      %\047d\n", output_tok[g]
-        printf "    Cache read tokens:  %\047d\n", cache_read[g]
-        printf "    Cache write tokens: %\047d\n", cache_write[g]
-        printf "    TOTAL tokens:       %\047d\n", group_total
-        printf "\n"
-      }
-      if (n_groups > 1) {
-        grand_total = total_input + total_output + total_cread + total_cwrite
-        printf "  Total (agent + subagent)\n"
-        printf "    Requests:           %\047d\n", total_reqs
-        printf "    Input tokens:       %\047d\n", total_input
-        printf "    Output tokens:      %\047d\n", total_output
-        printf "    Cache read tokens:  %\047d\n", total_cread
-        printf "    Cache write tokens: %\047d\n", total_cwrite
-        printf "    TOTAL tokens:       %\047d\n", grand_total
-      }
-    }'
+  python3 -c "
+import json, sys
+
+events_file = sys.argv[1]
+primary_model = sys.argv[2] if len(sys.argv) > 2 else ''
+
+shutdown = None
+with open(events_file) as f:
+    for line in f:
+        try:
+            obj = json.loads(line)
+            if obj.get('type') == 'session.shutdown':
+                shutdown = obj
+                break
+        except json.JSONDecodeError:
+            pass
+
+if not shutdown:
+    print('  (no shutdown event found - session may still be running)')
+    sys.exit(0)
+
+data = shutdown.get('data', shutdown)
+metrics = data.get('modelMetrics', {})
+
+if not metrics:
+    print('  (no modelMetrics in shutdown event)')
+    sys.exit(0)
+
+agent_model = primary_model
+if not agent_model or agent_model == 'unknown':
+    agent_model = next(iter(metrics), '')
+
+groups = {}  # 'Agent' or 'Subagents' -> {reqs, input, output, cread, cwrite}
+for model, info in metrics.items():
+    usage = info.get('usage', {})
+    reqs = info.get('requests', {}).get('count', 0)
+    input_t = usage.get('inputTokens', 0)
+    output_t = usage.get('outputTokens', 0)
+    cread = usage.get('cacheReadTokens', 0)
+    cwrite = usage.get('cacheWriteTokens', 0)
+
+    bucket = 'Agent' if model == agent_model else 'Subagents'
+    g = groups.setdefault(bucket, {'reqs': 0, 'input': 0, 'output': 0, 'cread': 0, 'cwrite': 0})
+    g['reqs'] += reqs
+    g['input'] += input_t
+    g['output'] += output_t
+    g['cread'] += cread
+    g['cwrite'] += cwrite
+
+for label in ['Agent', 'Subagents']:
+    if label not in groups:
+        continue
+    g = groups[label]
+    total = g['input'] + g['output'] + g['cread'] + g['cwrite']
+    print(f\"  {label}\")
+    print(f\"    Requests:           {g['reqs']:,}\")
+    print(f\"    Input tokens:       {g['input']:,}\")
+    print(f\"    Output tokens:      {g['output']:,}\")
+    print(f\"    Cache read tokens:  {g['cread']:,}\")
+    print(f\"    Cache write tokens: {g['cwrite']:,}\")
+    print(f\"    TOTAL tokens:       {total:,}\")
+    print()
+
+if len(groups) > 1:
+    totals = {k: sum(g[k] for g in groups.values()) for k in ['reqs','input','output','cread','cwrite']}
+    grand = totals['input'] + totals['output'] + totals['cread'] + totals['cwrite']
+    print('  Total (agent + subagent)')
+    print(f\"    Requests:           {totals['reqs']:,}\")
+    print(f\"    Input tokens:       {totals['input']:,}\")
+    print(f\"    Output tokens:      {totals['output']:,}\")
+    print(f\"    Cache read tokens:  {totals['cread']:,}\")
+    print(f\"    Cache write tokens: {totals['cwrite']:,}\")
+    print(f\"    TOTAL tokens:       {grand:,}\")
+" "$EVENTS" "$selected_model"
 }
 
 # ─── Dispatch ─────────────────────────────────────────────────────────────────
