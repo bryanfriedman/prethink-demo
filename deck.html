@@ -1140,16 +1140,16 @@ input[type="checkbox"]:checked ~ label .arrow { transform: rotate(90deg); }
     <h1 class="s headline" style="font-size: clamp(2rem, 3.4vw, 2.7rem); max-width: 820px; line-height: 1.25;">
       An agent that reads the <span class="em">quality signal.</span>
     </h1>
-    <p class="s subhead" style="max-width: 720px;">On Shopizer, <code>OrderServiceImpl</code> is a real God Class&mdash;Prethink flags it HIGH: WMC 81, TCC 0.08, ATFD 66. We ask the agent to add to it.</p>
+    <p class="s subhead" style="max-width: 720px;">In our ecommerce example, <code>OrderService</code> is a God Class&mdash;Prethink flags it HIGH: WMC 70, TCC 0.29, ATFD 50. We ask the agent to add to it.</p>
     <div class="s cols cols-2" style="margin-top: 24px; gap: 28px; text-align: left;">
       <div style="border: 3px solid var(--ink); padding: 18px 20px; background: #fff;">
         <div class="label" style="margin-bottom: 10px;">The prompt</div>
-        <p style="font-family: var(--mono); font-size: 0.82rem; font-weight: 700; line-height: 1.55;">&ldquo;Add logic to OrderServiceImpl to calculate loyalty points for a completed order. Follow our code quality standards.&rdquo;</p>
+        <p style="font-family: var(--mono); font-size: 0.82rem; font-weight: 700; line-height: 1.55;">&ldquo;Add logic to OrderService to calculate loyalty points for a completed order. Follow our code quality standards.&rdquo;</p>
       </div>
       <div style="background: color-mix(in srgb, var(--primary) 8%, transparent); padding: 18px 20px; border: 3px solid var(--primary);">
         <div class="label" style="margin-bottom: 10px; color: var(--primary-text);">Goal &mdash; a quality-aware agent will</div>
         <ul class="check-list">
-          <li>Cite the God Class evidence (WMC 81, TCC 0.08, ATFD 66)</li>
+          <li>Cite the God Class evidence (WMC 70, TCC 0.29, ATFD 50)</li>
           <li>Refuse to pile another method onto it</li>
           <li>Recommend extracting a focused collaborator</li>
         </ul>

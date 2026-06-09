@@ -6,18 +6,27 @@ Three short demos showing how Moderne Prethink gives AI coding agents resolved, 
 |------|------|---------------|
 | **1 — Prethink on the SaaS Platform** | `shopizer` | Generate context on the platform, then watch a local agent use it |
 | **2 — Customizing Prethink** | `prethink-ecommerce-example` | Extend Prethink to discover your own platform conventions; the agent follows them |
-| **3 — Code quality as agent feedback** | `shopizer` | The agent reasons from a real God Class signal instead of piling on |
+| **3 — Code quality as agent feedback** | `prethink-ecommerce-example` | The agent reasons from a God Class signal instead of piling on |
 
 ## Prerequisites
 
-Run `./init.sh` to set up the demo environment (pins the CLI to a stable `4.2.12`, clones the repos, generates Prethink context). Use `--agent copilot` if demoing Copilot.
+Run `./init.sh` to set up the demo environment (pins the CLI to a stable `4.2.12`, clones the repos, generates Prethink context). It writes **both** `CLAUDE.md` and `.github/copilot-instructions.md`, so you can run either agent without re-initializing.
 
 ```bash
-./init.sh            # Claude (default)
-./init.sh --agent copilot
+./init.sh                  # both Claude + Copilot configs (default)
+./init.sh --agent copilot  # limit to a single agent if you prefer
 ```
 
 Install helpers if needed: `brew install tree duckdb`.
+
+### Two trees: `with-prethink/` and `no-prethink/`
+
+`init.sh` clones the repos twice:
+
+- **`with-prethink/`** — Prethink context generated; this is where the live demos run.
+- **`no-prethink/`** — the same repos at the same commits, left untouched (no `.moderne/context`, no `CLAUDE.md`). This is the baseline.
+
+We're **not** doing a live side-by-side. Instead, run each demo's agent session in both trees **ahead of time** so you know the results are what you want — then scroll back through the recorded sessions during the talk, and use them to compare token usage (`session-tokens.sh`, below). The no-prethink runs stay off-screen unless you want to call out the contrast.
 
 ---
 
@@ -42,9 +51,11 @@ cd with-prethink/shopizer-ecommerce/shopizer
 claude     # or: copilot
 ```
 
-**Prompt:** `Which parts of the platform handle order fulfillment, and what would I touch to add a new shipping carrier?`
+**Prompt:** `Which parts of the platform handle order shipping, and what external shipping carriers does it integrate with?`
 
-**Goal:** the agent answers by reading `.moderne/context/` (e.g. `external-service-calls.csv` surfaces the USPS/UPS integrations; `architecture.md` the components) — not by exploring across 6,500 methods. It cites Prethink as the source.
+**Goal:** the agent answers entirely from `.moderne/context/` — `architecture.md` for the shipping components, `service-endpoints.csv` for the `/shipping/*` APIs, and `external-service-calls.csv` for the USPS/UPS carrier integrations — not by exploring across 6,500 methods. It cites Prethink as the source.
+
+> This is an **orientation** question in the platform's own vocabulary (order, shipping, carriers), so the resolved context answers it completely. Avoid "how would I add/change X" phrasing here — that pulls the agent into reading source to learn the extension pattern (which is the point of Demos 2 and 3, not this one).
 
 ### What to look for
 
@@ -134,23 +145,23 @@ This is the quality signal Prethink resolves from the LST — and it's the same 
 
 ### Part 2 — In the local agent: reasoning from the signal
 
-`shopizer` contains authentic, organically-grown code smells. The headline offender:
+`prethink-ecommerce-example` has a deliberately overloaded service class. The headline offender:
 
-- **`OrderServiceImpl`** → `GOD_CLASS`, severity **HIGH**, evidence `WMC=81, TCC=0.08, ATFD=66`
+- **`OrderService`** → `GOD_CLASS`, severity **HIGH**, evidence `WMC=70, TCC=0.29, ATFD=50` (393 lines, 19 methods)
 
-(For maximum drama, `OrderFacadeImpl` is worse still: `WMC=190`, 41 methods. Swap it in if you prefer.)
+Inside it, the worst feature-envy methods make the case concrete — logic that clearly belongs elsewhere: `calculateFinalPrice` (CRITICAL, 101 foreign accesses) and `formatCustomerInvoice` (CRITICAL, 50).
 
 ```bash
-cd with-prethink/shopizer-ecommerce/shopizer
-duckdb -c "SELECT \"Class name\", Severity, Evidence FROM '.moderne/context/code-smells.csv' WHERE \"Smell type\"='GOD_CLASS' AND Severity='HIGH' ORDER BY 1 LIMIT 10"
+cd with-prethink/bryanfriedman/prethink-ecommerce-example
+duckdb -c "SELECT \"Class name\", Severity, Evidence FROM '.moderne/context/code-smells.csv' WHERE \"Smell type\"='GOD_CLASS' ORDER BY 1"
 ```
 
-Show that this is a **real** detection on real OSS code — not a hand-built example.
+Prethink computed this deterministically from the LST — the same metric evidence the agent reads.
 
 ### Goal (state this up front)
 
 A quality-aware change will:
-1. **Recognize `OrderServiceImpl` is already a God Class** and cite the metric evidence from Prethink
+1. **Recognize `OrderService` is already a God Class** and cite the metric evidence from Prethink
 2. **Not add another method to it** (which would make cohesion worse)
 3. **Recommend extraction** — a focused collaborator (e.g. a dedicated calculator/service) instead
 
@@ -160,18 +171,18 @@ A quality-aware change will:
 claude     # or: copilot
 ```
 
-**Prompt:** `Add logic to OrderServiceImpl to calculate loyalty points earned for a completed order. Follow our code quality standards.`
+**Prompt:** `Add logic to OrderService to calculate loyalty points earned for a completed order. Follow the code quality standards as defined in the Prethink context.`
 
 ### What to look for
 
-- The agent queries `code-smells.csv` / `class-quality-metrics.csv`, sees `OrderServiceImpl` is a HIGH-severity God Class, and **pushes back on adding to it** — proposing a separate, cohesive component and citing the metric.
+- The agent queries `code-smells.csv` / `class-quality-metrics.csv`, sees `OrderService` is a HIGH-severity God Class, and **pushes back on adding to it** — proposing a separate, cohesive component and citing the metric.
 - **Test-health tease:** `cat .moderne/context/test-gaps.md` — Prethink also ranks untested, high-risk methods, so the agent knows where new code needs coverage. Quality data goes to the *agent*, not just a dashboard.
 
 ---
 
 ## Reporting token usage (optional)
 
-Report a completed session's token usage with `session-tokens.sh`:
+Report a completed session's token usage with `session-tokens.sh`. Run the same prompt in both trees ahead of time (`with-prethink/` and `no-prethink/`), then pull the numbers for each session to show the contrast:
 
 ```bash
 ./session-tokens.sh <session-id>            # Claude: session ID via /status or on exit
